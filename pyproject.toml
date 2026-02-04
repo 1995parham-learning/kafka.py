@@ -1,0 +1,39 @@
+[project]
+name = "kafka-demo"
+version = "0.1.0"
+description = "Async Kafka consumer/producer demo using aiokafka"
+requires-python = ">=3.14"
+dependencies = [
+    "aiokafka>=0.13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "ty",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff",
+    "mypy",
+    "ty",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "aiokafka.*"
+ignore_missing_imports = true
