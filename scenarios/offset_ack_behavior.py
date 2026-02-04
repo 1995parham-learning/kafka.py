@@ -4,7 +4,7 @@ Scenario: Acknowledging message N+1 without acknowledging message N
 This demonstrates Kafka's offset-based commit model:
 - Kafka doesn't have per-message acks like RabbitMQ
 - Committing offset N means "I've processed all messages up to N"
-- If you commit offset 6 without committing offset 5, offset 5 is also considered committed
+- If you commit offset 6 without committing 5, offset 5 is also committed
 
 This scenario shows:
 1. Producer sends 5 messages (offsets 0-4)
@@ -19,10 +19,9 @@ Run this to see the behavior:
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, TopicPartition
-
 
 TOPIC = "offset-ack-demo"
 BOOTSTRAP_SERVERS = "localhost:29092"
@@ -38,7 +37,7 @@ async def produce_messages(count: int = 5):
     await producer.start()
 
     try:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("PRODUCING MESSAGES")
         print("=" * 60)
 
@@ -46,10 +45,11 @@ async def produce_messages(count: int = 5):
             message = {
                 "id": i,
                 "data": f"Message {i}",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             result = await producer.send_and_wait(TOPIC, value=message)
-            print(f"Sent message {i} -> partition={result.partition}, offset={result.offset}")
+            part, off = result.partition, result.offset
+            print(f"Sent message {i} -> partition={part}, offset={off}")
 
     finally:
         await producer.stop()
@@ -73,7 +73,7 @@ async def consume_with_selective_ack():
     await consumer.start()
 
     try:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("CONSUMING WITH SELECTIVE ACK (First Run)")
         print("=" * 60)
         print("Strategy: Process all messages, but 'fail' on message 2")
@@ -91,30 +91,34 @@ async def consume_with_selective_ack():
 
                 # Simulate failure on message 2
                 if value["id"] == 2:
-                    print(f"  OFFSET {offset}: FAILED to process (simulated) - {value['data']}")
+                    data = value['data']
+                    print(f"  OFFSET {offset}: FAILED to process (simulated) - {data}")
                     failed_offsets.append(offset)
                 else:
-                    print(f"  OFFSET {offset}: Processed successfully - {value['data']}")
+                    print(
+                        f"  OFFSET {offset}: Processed successfully - {value['data']}"
+                    )
                     processed_offsets.append(offset)
 
                 # After processing message 4, commit and break
                 if value["id"] == 4:
                     # Commit offset 5 (next offset to read)
                     # This implicitly "acks" ALL messages 0-4, including the failed one!
-                    print(f"\n  Committing offset {offset + 1} (next offset after {offset})")
-                    await consumer.commit({tp: offset + 1})
+                    next_offset = offset + 1
+                    print(f"\n  Committing offset {next_offset} (next after {offset})")
+                    await consumer.commit({tp: next_offset})
                     break
 
         # Use wait_for to add timeout
         try:
             await asyncio.wait_for(consume_batch(), timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             print("  No messages received (timeout)")
             return
 
         print(f"\n  Processed offsets: {processed_offsets}")
         print(f"  Failed offsets: {failed_offsets}")
-        print(f"\n  WARNING: Offset 2 was 'failed' but is now committed!")
+        print("\n  WARNING: Offset 2 was 'failed' but is now committed!")
 
     finally:
         await consumer.stop()
@@ -135,7 +139,7 @@ async def consume_after_restart():
     await consumer.start()
 
     try:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("CONSUMING AFTER 'RESTART' (Second Run)")
         print("=" * 60)
         print("Expecting: No messages (all were committed, including failed one)\n")
@@ -146,7 +150,7 @@ async def consume_after_restart():
 
         try:
             await asyncio.wait_for(consume_batch(), timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             print("  No messages to consume - offset 2 was lost!")
             print("  The failed message will never be reprocessed.")
 
@@ -206,7 +210,7 @@ This is different from RabbitMQ where you can nack individual messages.
     # Simulate restart - message 2 should be lost
     await consume_after_restart()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("SOLUTION: Use a Dead Letter Queue or local tracking")
     print("=" * 60)
     print("""

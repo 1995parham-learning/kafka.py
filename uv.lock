@@ -38,13 +38,6 @@ dependencies = [
     { name = "aiokafka" },
 ]
 
-[package.optional-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "ruff" },
-    { name = "ty" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
@@ -53,13 +46,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "aiokafka", specifier = ">=0.13.0" },
-    { name = "mypy", marker = "extra == 'dev'" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "ty", marker = "extra == 'dev'" },
-]
-provides-extras = ["dev"]
+requires-dist = [{ name = "aiokafka", specifier = ">=0.13.0" }]
 
 [package.metadata.requires-dev]
 dev = [

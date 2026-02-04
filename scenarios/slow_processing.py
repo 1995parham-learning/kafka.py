@@ -16,11 +16,11 @@ Run this to see the behavior:
 """
 
 import asyncio
+import contextlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, TopicPartition
-
 
 TOPIC = "slow-processing-demo"
 BOOTSTRAP_SERVERS = "localhost:29092"
@@ -36,7 +36,7 @@ async def produce_messages(count: int = 5):
     await producer.start()
 
     try:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("PRODUCING MESSAGES")
         print("=" * 60)
 
@@ -47,9 +47,9 @@ async def produce_messages(count: int = 5):
                 "id": i,
                 "data": f"Message {i}",
                 "processing_time_seconds": processing_time,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
-            result = await producer.send_and_wait(TOPIC, value=message)
+            await producer.send_and_wait(TOPIC, value=message)
             marker = " <- SLOW (15s)" if i == 2 else ""
             print(f"  Message {i}: processing_time={processing_time}s{marker}")
 
@@ -73,12 +73,12 @@ async def consume_with_default_timeout():
         enable_auto_commit=False,
         # Short timeout to demonstrate the problem quickly
         max_poll_interval_ms=10000,  # 10 seconds max between polls
-        session_timeout_ms=10000,    # 10 seconds session timeout
+        session_timeout_ms=10000,  # 10 seconds session timeout
     )
     await consumer.start()
 
     try:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("CONSUMING WITH SHORT TIMEOUT (Will Fail)")
         print("=" * 60)
         print("Settings: max_poll_interval_ms=10000, session_timeout_ms=10000")
@@ -92,7 +92,9 @@ async def consume_with_default_timeout():
                 tp = TopicPartition(msg.topic, msg.partition)
                 processing_time = value["processing_time_seconds"]
 
-                print(f"  Processing message {value['id']} (takes {processing_time}s)...")
+                print(
+                    f"  Processing message {value['id']} (takes {processing_time}s)..."
+                )
                 start = datetime.now()
 
                 # Simulate slow processing
@@ -106,7 +108,7 @@ async def consume_with_default_timeout():
 
         try:
             await asyncio.wait_for(process_messages(), timeout=60.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass
         except Exception as e:
             print(f"\n  ERROR: {type(e).__name__}: {e}")
@@ -130,14 +132,14 @@ async def consume_with_proper_config():
         auto_offset_reset="earliest",
         enable_auto_commit=False,
         # Increased timeouts for slow processing
-        max_poll_interval_ms=60000,   # 60 seconds max between polls
-        session_timeout_ms=30000,     # 30 seconds session timeout
-        heartbeat_interval_ms=3000,   # 3 seconds heartbeat
+        max_poll_interval_ms=60000,  # 60 seconds max between polls
+        session_timeout_ms=30000,  # 30 seconds session timeout
+        heartbeat_interval_ms=3000,  # 3 seconds heartbeat
     )
     await consumer.start()
 
     try:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("CONSUMING WITH PROPER TIMEOUT CONFIG")
         print("=" * 60)
         print("Settings: max_poll_interval_ms=60000, session_timeout_ms=30000")
@@ -151,7 +153,9 @@ async def consume_with_proper_config():
                 tp = TopicPartition(msg.topic, msg.partition)
                 processing_time = value["processing_time_seconds"]
 
-                print(f"  Processing message {value['id']} (takes {processing_time}s)...")
+                print(
+                    f"  Processing message {value['id']} (takes {processing_time}s)..."
+                )
                 start = datetime.now()
 
                 await asyncio.sleep(processing_time)
@@ -162,10 +166,8 @@ async def consume_with_proper_config():
                 await consumer.commit({tp: msg.offset + 1})
                 processed.append(value["id"])
 
-        try:
+        with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(process_messages(), timeout=60.0)
-        except asyncio.TimeoutError:
-            pass
 
         print(f"\n  Processed messages: {processed}")
 
@@ -195,7 +197,7 @@ async def consume_with_background_processing():
     await consumer.start()
 
     try:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("CONSUMING WITH BACKGROUND PROCESSING (Best Practice)")
         print("=" * 60)
         print("Pattern: Poll quickly, process in background tasks")
@@ -203,9 +205,10 @@ async def consume_with_background_processing():
 
         pending_tasks: dict[int, asyncio.Task] = {}
         processed: list[int] = []
-        offsets_to_commit: dict[int, tuple[TopicPartition, int]] = {}
 
-        async def process_in_background(msg_id: int, processing_time: int, tp: TopicPartition, offset: int):
+        async def process_in_background(
+            msg_id: int, processing_time: int, tp: TopicPartition, offset: int
+        ):
             """Background task for processing a single message."""
             print(f"  [BG] Starting message {msg_id} (takes {processing_time}s)")
             await asyncio.sleep(processing_time)
@@ -249,10 +252,8 @@ async def consume_with_background_processing():
                     processed.append(result_id)
                     print(f"  [COMMIT] Message {result_id} committed")
 
-        try:
+        with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(process_messages(), timeout=60.0)
-        except asyncio.TimeoutError:
-            pass
 
         print(f"\n  Processed messages: {sorted(processed)}")
 
@@ -285,7 +286,8 @@ async def main():
     print("\n" + "=" * 60)
     print("SLOW MESSAGE PROCESSING DEMO")
     print("=" * 60)
-    print("""
+    print(
+        """
 This demo shows what happens when message processing is slow:
 
 Problem:
@@ -302,7 +304,8 @@ Solutions:
   1. Increase timeouts (simple but not always practical)
   2. Process in background tasks (best for async Python)
   3. Use pause/resume to stop fetching during heavy processing
-""")
+"""
+    )
 
     await reset_consumer_groups()
     await produce_messages(5)
@@ -324,16 +327,18 @@ Solutions:
     # Demo 3: Background processing (best practice)
     await consume_with_background_processing()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("KEY TAKEAWAYS")
     print("=" * 60)
-    print("""
+    print(
+        """
 1. Know your processing time and set timeouts accordingly
 2. For unpredictable processing times, use background tasks
 3. aiokafka handles heartbeats automatically in the background
 4. Consider using consumer.pause() for very long operations
 5. Monitor consumer lag to detect slow processing issues
-""")
+"""
+    )
 
 
 if __name__ == "__main__":

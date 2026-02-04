@@ -11,12 +11,12 @@ Run this to see the behavior:
 """
 
 import asyncio
+import contextlib
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, TopicPartition
-
 
 MAIN_TOPIC = "orders"
 DLQ_TOPIC = "orders-dlq"
@@ -39,8 +39,7 @@ async def process_order(order: dict) -> ProcessingResult:
 
     if order["id"] % 3 == 2:
         return ProcessingResult(
-            success=False,
-            error=f"Payment gateway timeout for order {order['id']}"
+            success=False, error=f"Payment gateway timeout for order {order['id']}"
         )
 
     return ProcessingResult(success=True)
@@ -55,7 +54,7 @@ async def produce_orders(count: int = 10):
     await producer.start()
 
     try:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("PRODUCING ORDERS")
         print("=" * 60)
 
@@ -64,7 +63,7 @@ async def produce_orders(count: int = 10):
                 "id": i,
                 "product": f"Product-{i}",
                 "amount": 100 + i * 10,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             result = await producer.send_and_wait(MAIN_TOPIC, value=order)
             print(f"  Order {i}: ${order['amount']} -> offset={result.offset}")
@@ -97,7 +96,7 @@ async def consume_with_dlq():
     await dlq_producer.start()
 
     try:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("CONSUMING WITH DLQ PATTERN")
         print("=" * 60)
         print(f"Main topic: {MAIN_TOPIC}")
@@ -120,7 +119,7 @@ async def consume_with_dlq():
                     processed += 1
                 else:
                     print(f"  ✗ Order {order['id']}: FAILED - {result.error}")
-                    print(f"    -> Sending to DLQ")
+                    print("    -> Sending to DLQ")
 
                     # Send to Dead Letter Queue with metadata
                     dlq_message = {
@@ -129,7 +128,7 @@ async def consume_with_dlq():
                         "original_topic": msg.topic,
                         "original_partition": msg.partition,
                         "original_offset": msg.offset,
-                        "failed_at": datetime.now(timezone.utc).isoformat(),
+                        "failed_at": datetime.now(UTC).isoformat(),
                         "retry_count": 0,
                     }
                     await dlq_producer.send_and_wait(DLQ_TOPIC, value=dlq_message)
@@ -138,10 +137,8 @@ async def consume_with_dlq():
                 # Commit after each message (or batch in production)
                 await consumer.commit({tp: msg.offset + 1})
 
-        try:
+        with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(process_batch(), timeout=10.0)
-        except asyncio.TimeoutError:
-            pass
 
         print(f"\n  Summary: {processed} processed, {failed} sent to DLQ")
 
@@ -166,7 +163,7 @@ async def consume_dlq():
     await consumer.start()
 
     try:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("DLQ CONSUMER (Retry Handler)")
         print("=" * 60)
         print("Processing failed messages from DLQ:\n")
@@ -176,7 +173,7 @@ async def consume_dlq():
                 dlq_msg = msg.value
                 original = dlq_msg["original_message"]
 
-                print(f"  DLQ Message:")
+                print("  DLQ Message:")
                 print(f"    Original Order: {original['id']}")
                 print(f"    Error: {dlq_msg['error']}")
                 print(f"    Failed at: {dlq_msg['failed_at']}")
@@ -191,7 +188,7 @@ async def consume_dlq():
 
         try:
             await asyncio.wait_for(process_dlq(), timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             print("  No more messages in DLQ")
 
     finally:
@@ -243,7 +240,7 @@ Benefits:
     await consume_with_dlq()
     await consume_dlq()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("KEY TAKEAWAYS")
     print("=" * 60)
     print("""

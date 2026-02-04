@@ -15,10 +15,9 @@ import asyncio
 import json
 import random
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, TopicPartition
-
 
 TOPIC = "async-worker-demo"
 BOOTSTRAP_SERVERS = "localhost:29092"
@@ -28,6 +27,7 @@ GROUP_ID = "async-worker-group"
 @dataclass
 class InFlightMessage:
     """Track a message being processed."""
+
     msg_id: int
     partition: int
     offset: int
@@ -45,6 +45,7 @@ class AsyncWorkerConsumer:
     - Commits only after processing completes
     - Graceful shutdown waits for in-flight messages
     """
+
     topic: str
     group_id: str
     max_concurrent: int = 5
@@ -105,6 +106,7 @@ class AsyncWorkerConsumer:
 
     async def _worker(self, msg):
         """Worker that processes a message with semaphore control."""
+        assert self.consumer is not None
         msg_id = msg.value["id"]
         tp = TopicPartition(msg.topic, msg.partition)
 
@@ -136,6 +138,7 @@ class AsyncWorkerConsumer:
         Messages are immediately dispatched to workers.
         Consumer loop stays fast, heartbeats keep flowing.
         """
+        assert self.consumer is not None
         count = 0
 
         async for msg in self.consumer:
@@ -153,7 +156,8 @@ class AsyncWorkerConsumer:
                 task=task,
             )
 
-            print(f"  [{msg_id}] Received, dispatched to worker (in-flight: {len(self.in_flight)})")
+            in_flight_count = len(self.in_flight)
+            print(f"  [{msg_id}] Received, dispatched (in-flight: {in_flight_count})")
 
             count += 1
             if max_messages and count >= max_messages:
@@ -162,7 +166,9 @@ class AsyncWorkerConsumer:
         # Wait for remaining workers
         if self.in_flight:
             print(f"\n  Draining {len(self.in_flight)} remaining messages...")
-            await asyncio.gather(*[m.task for m in self.in_flight.values()], return_exceptions=True)
+            await asyncio.gather(
+                *[m.task for m in self.in_flight.values()], return_exceptions=True
+            )
 
 
 async def produce_messages(count: int = 15):
@@ -174,7 +180,7 @@ async def produce_messages(count: int = 15):
     await producer.start()
 
     try:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("PRODUCING MESSAGES")
         print("=" * 60)
 
@@ -185,7 +191,7 @@ async def produce_messages(count: int = 15):
                 "id": i,
                 "data": f"Message {i}",
                 "processing_time": processing_time,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             await producer.send_and_wait(TOPIC, value=message)
             print(f"  Message {i}: processing_time={processing_time}s")
@@ -236,7 +242,7 @@ Key insight:
     await reset_consumer_group()
     await produce_messages(15)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("CONSUMING WITH ASYNC WORKER POOL")
     print("=" * 60)
     print("max_concurrent=5: Up to 5 messages processed in parallel\n")
@@ -250,16 +256,13 @@ Key insight:
     await worker.start()
 
     try:
-        await asyncio.wait_for(
-            worker.run(max_messages=15),
-            timeout=60.0
-        )
-    except asyncio.TimeoutError:
+        await asyncio.wait_for(worker.run(max_messages=15), timeout=60.0)
+    except TimeoutError:
         pass
     finally:
         await worker.stop()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("KEY POINTS")
     print("=" * 60)
     print("""

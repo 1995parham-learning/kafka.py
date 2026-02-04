@@ -13,14 +13,14 @@ Run this:
 """
 
 import asyncio
+import contextlib
 import json
 import random
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, TopicPartition
-
 
 TOPIC = "inflight-demo"
 BOOTSTRAP_SERVERS = "localhost:29092"
@@ -28,15 +28,16 @@ GROUP_ID = "inflight-demo-group"
 
 
 class MessageState(Enum):
-    QUEUED = "queued"           # Received, waiting for worker
-    PROCESSING = "processing"   # Worker is processing
-    COMMITTING = "committing"   # Processing done, committing offset
-    DONE = "done"               # Fully complete
+    QUEUED = "queued"  # Received, waiting for worker
+    PROCESSING = "processing"  # Worker is processing
+    COMMITTING = "committing"  # Processing done, committing offset
+    DONE = "done"  # Fully complete
 
 
 @dataclass
 class InFlightMessage:
     """Detailed tracking of an in-flight message."""
+
     msg_id: int
     partition: int
     offset: int
@@ -73,11 +74,16 @@ class InFlightMessage:
             return f"{icon} msg[{self.msg_id}] QUEUED (waiting {self.elapsed:.1f}s)"
 
         elif self.state == MessageState.PROCESSING:
-            progress = (self.processing_elapsed or 0) / self.processing_time_expected * 100
+            progress = (
+                (self.processing_elapsed or 0) / self.processing_time_expected * 100
+            )
+            bar_filled = '█' * int(progress / 10)
+            bar_empty = '░' * (10 - int(progress / 10))
+            elapsed = self.processing_elapsed
+            expected = self.processing_time_expected
             return (
-                f"{icon} msg[{self.msg_id}] PROCESSING "
-                f"({self.processing_elapsed:.1f}s / {self.processing_time_expected}s) "
-                f"[{'█' * int(progress/10)}{'░' * (10-int(progress/10))}] {progress:.0f}%"
+                f"{icon} msg[{self.msg_id}] PROCESSING ({elapsed:.1f}s/{expected}s) "
+                f"[{bar_filled}{bar_empty}] {progress:.0f}%"
             )
 
         elif self.state == MessageState.COMMITTING:
@@ -90,6 +96,7 @@ class InFlightMessage:
 @dataclass
 class TrackedConsumer:
     """Consumer with detailed in-flight tracking and live display."""
+
     topic: str
     group_id: str
     max_concurrent: int = 3
@@ -120,10 +127,8 @@ class TrackedConsumer:
 
         if self.display_task:
             self.display_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.display_task
-            except asyncio.CancelledError:
-                pass
 
         # Wait for in-flight
         tasks = [m.task for m in self.in_flight.values() if m.task]
@@ -142,7 +147,9 @@ class TrackedConsumer:
             print("IN-FLIGHT MESSAGE TRACKER")
             print("=" * 70)
             print(f"\nMax concurrent workers: {self.max_concurrent}")
-            print(f"Completed: {len(self.completed)} | In-flight: {len(self.in_flight)}")
+            print(
+                f"Completed: {len(self.completed)} | In-flight: {len(self.in_flight)}"
+            )
             print("-" * 70)
 
             if not self.in_flight:
@@ -175,6 +182,7 @@ class TrackedConsumer:
 
     async def worker(self, msg):
         """Worker that processes a message."""
+        assert self.consumer is not None
         msg_id = msg.value["id"]
         tp = TopicPartition(msg.topic, msg.partition)
         inflight = self.in_flight[msg_id]
@@ -209,6 +217,7 @@ class TrackedConsumer:
 
     async def run(self, max_messages: int):
         # Start display task
+        assert self.consumer is not None
         self.display_task = asyncio.create_task(self.display_status())
 
         count = 0
@@ -260,7 +269,7 @@ async def produce_messages(count: int = 10):
             message = {
                 "id": i,
                 "processing_time": processing_time,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             await producer.send_and_wait(TOPIC, value=message)
     finally:
@@ -310,7 +319,7 @@ async def main():
     print("=" * 70)
     print("DEMO COMPLETE")
     print("=" * 70)
-    print(f"""
+    print("""
 What you saw:
 
 1. QUEUED (⏳)

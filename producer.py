@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from aiokafka import AIOKafkaProducer
 
@@ -22,7 +22,7 @@ async def send_messages(producer: AIOKafkaProducer, topic: str, count: int = 10)
         message = {
             "id": i,
             "message": f"Hello from async producer! Message #{i}",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         key = f"key-{i % 3}"  # Rotate between 3 keys for partition distribution
 
