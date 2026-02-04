@@ -78,8 +78,8 @@ class InFlightMessage:
             progress = (
                 (self.processing_elapsed or 0) / self.processing_time_expected * 100
             )
-            bar_filled = '█' * int(progress / 10)
-            bar_empty = '░' * (10 - int(progress / 10))
+            bar_filled = "█" * int(progress / 10)
+            bar_empty = "░" * (10 - int(progress / 10))
             elapsed = self.processing_elapsed
             expected = self.processing_time_expected
             return (

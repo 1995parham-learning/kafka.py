@@ -91,7 +91,7 @@ async def consume_with_selective_ack() -> None:
 
                 # Simulate failure on message 2
                 if value["id"] == 2:
-                    data = value['data']
+                    data = value["data"]
                     print(f"  OFFSET {offset}: FAILED to process (simulated) - {data}")
                     failed_offsets.append(offset)
                 else:
