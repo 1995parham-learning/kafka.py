@@ -15,6 +15,7 @@ import contextlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, TopicPartition
 
@@ -30,7 +31,7 @@ class ProcessingResult:
     error: str | None = None
 
 
-async def process_order(order: dict) -> ProcessingResult:
+async def process_order(order: dict[str, Any]) -> ProcessingResult:
     """
     Simulate order processing.
     Orders with id % 3 == 2 will "fail" (simulating random failures).
@@ -45,7 +46,7 @@ async def process_order(order: dict) -> ProcessingResult:
     return ProcessingResult(success=True)
 
 
-async def produce_orders(count: int = 10):
+async def produce_orders(count: int = 10) -> None:
     """Send test orders."""
     producer = AIOKafkaProducer(
         bootstrap_servers=BOOTSTRAP_SERVERS,
@@ -72,7 +73,7 @@ async def produce_orders(count: int = 10):
         await producer.stop()
 
 
-async def consume_with_dlq():
+async def consume_with_dlq() -> None:
     """
     Consume orders with Dead Letter Queue pattern.
     Failed messages go to DLQ, allowing main processing to continue.
@@ -105,7 +106,7 @@ async def consume_with_dlq():
         processed = 0
         failed = 0
 
-        async def process_batch():
+        async def process_batch() -> None:
             nonlocal processed, failed
 
             async for msg in consumer:
@@ -147,7 +148,7 @@ async def consume_with_dlq():
         await dlq_producer.stop()
 
 
-async def consume_dlq():
+async def consume_dlq() -> None:
     """
     Consume from Dead Letter Queue.
     In production, this would implement retry logic or alerting.
@@ -168,7 +169,7 @@ async def consume_dlq():
         print("=" * 60)
         print("Processing failed messages from DLQ:\n")
 
-        async def process_dlq():
+        async def process_dlq() -> None:
             async for msg in consumer:
                 dlq_msg = msg.value
                 original = dlq_msg["original_message"]
@@ -195,7 +196,7 @@ async def consume_dlq():
         await consumer.stop()
 
 
-async def reset_consumer_groups():
+async def reset_consumer_groups() -> None:
     """Reset consumer groups for clean demo."""
     for group in [GROUP_ID, f"{GROUP_ID}-dlq"]:
         for topic in [MAIN_TOPIC, DLQ_TOPIC]:
@@ -216,7 +217,7 @@ async def reset_consumer_groups():
                 pass
 
 
-async def main():
+async def main() -> None:
     print("\n" + "=" * 60)
     print("DEAD LETTER QUEUE (DLQ) PATTERN DEMO")
     print("=" * 60)

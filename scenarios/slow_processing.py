@@ -27,7 +27,7 @@ BOOTSTRAP_SERVERS = "localhost:29092"
 GROUP_ID = "slow-processor-group"
 
 
-async def produce_messages(count: int = 5):
+async def produce_messages(count: int = 5) -> None:
     """Send test messages with varying processing times."""
     producer = AIOKafkaProducer(
         bootstrap_servers=BOOTSTRAP_SERVERS,
@@ -57,7 +57,7 @@ async def produce_messages(count: int = 5):
         await producer.stop()
 
 
-async def consume_with_default_timeout():
+async def consume_with_default_timeout() -> None:
     """
     Consume with default timeouts - will fail on slow message.
 
@@ -86,7 +86,7 @@ async def consume_with_default_timeout():
 
         processed = []
 
-        async def process_messages():
+        async def process_messages() -> None:
             async for msg in consumer:
                 value = msg.value
                 tp = TopicPartition(msg.topic, msg.partition)
@@ -120,7 +120,7 @@ async def consume_with_default_timeout():
         await consumer.stop()
 
 
-async def consume_with_proper_config():
+async def consume_with_proper_config() -> None:
     """
     Consume with properly configured timeouts for slow processing.
     """
@@ -147,7 +147,7 @@ async def consume_with_proper_config():
 
         processed = []
 
-        async def process_messages():
+        async def process_messages() -> None:
             async for msg in consumer:
                 value = msg.value
                 tp = TopicPartition(msg.topic, msg.partition)
@@ -175,7 +175,7 @@ async def consume_with_proper_config():
         await consumer.stop()
 
 
-async def consume_with_background_processing():
+async def consume_with_background_processing() -> None:
     """
     Best practice: Process messages in background while keeping consumer responsive.
 
@@ -203,19 +203,19 @@ async def consume_with_background_processing():
         print("Pattern: Poll quickly, process in background tasks")
         print("Benefits: Consumer stays responsive, no timeout issues\n")
 
-        pending_tasks: dict[int, asyncio.Task] = {}
+        pending_tasks: dict[int, asyncio.Task[tuple[int, TopicPartition, int]]] = {}
         processed: list[int] = []
 
         async def process_in_background(
             msg_id: int, processing_time: int, tp: TopicPartition, offset: int
-        ):
+        ) -> tuple[int, TopicPartition, int]:
             """Background task for processing a single message."""
             print(f"  [BG] Starting message {msg_id} (takes {processing_time}s)")
             await asyncio.sleep(processing_time)
             print(f"  [BG] ✓ Message {msg_id} complete")
             return (msg_id, tp, offset)
 
-        async def process_messages():
+        async def process_messages() -> None:
             async for msg in consumer:
                 value = msg.value
                 msg_id = value["id"]
@@ -261,7 +261,7 @@ async def consume_with_background_processing():
         await consumer.stop()
 
 
-async def reset_consumer_groups():
+async def reset_consumer_groups() -> None:
     """Reset all consumer groups for clean demo."""
     groups = [GROUP_ID, f"{GROUP_ID}-proper", f"{GROUP_ID}-background"]
     for group in groups:
@@ -282,7 +282,7 @@ async def reset_consumer_groups():
             pass
 
 
-async def main():
+async def main() -> None:
     print("\n" + "=" * 60)
     print("SLOW MESSAGE PROCESSING DEMO")
     print("=" * 60)

@@ -28,7 +28,7 @@ BOOTSTRAP_SERVERS = "localhost:29092"
 GROUP_ID = "offset-ack-group"
 
 
-async def produce_messages(count: int = 5):
+async def produce_messages(count: int = 5) -> None:
     """Send test messages."""
     producer = AIOKafkaProducer(
         bootstrap_servers=BOOTSTRAP_SERVERS,
@@ -55,7 +55,7 @@ async def produce_messages(count: int = 5):
         await producer.stop()
 
 
-async def consume_with_selective_ack():
+async def consume_with_selective_ack() -> None:
     """
     Consume messages and demonstrate selective acknowledgment.
 
@@ -83,7 +83,7 @@ async def consume_with_selective_ack():
         processed_offsets: list[int] = []
 
         # Consume messages with a timeout
-        async def consume_batch():
+        async def consume_batch() -> None:
             async for msg in consumer:
                 offset = msg.offset
                 value = msg.value
@@ -124,7 +124,7 @@ async def consume_with_selective_ack():
         await consumer.stop()
 
 
-async def consume_after_restart():
+async def consume_after_restart() -> None:
     """
     Simulate consumer restart to show that message 2 is lost.
     """
@@ -144,7 +144,7 @@ async def consume_after_restart():
         print("=" * 60)
         print("Expecting: No messages (all were committed, including failed one)\n")
 
-        async def consume_batch():
+        async def consume_batch() -> None:
             async for msg in consumer:
                 print(f"  OFFSET {msg.offset}: {msg.value['data']}")
 
@@ -158,7 +158,7 @@ async def consume_after_restart():
         await consumer.stop()
 
 
-async def reset_consumer_group():
+async def reset_consumer_group() -> None:
     """Reset consumer group to start fresh."""
     consumer = AIOKafkaConsumer(
         TOPIC,
@@ -180,7 +180,7 @@ async def reset_consumer_group():
         await consumer.stop()
 
 
-async def main():
+async def main() -> None:
     print("\n" + "=" * 60)
     print("KAFKA OFFSET ACK BEHAVIOR DEMO")
     print("=" * 60)

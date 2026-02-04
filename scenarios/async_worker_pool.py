@@ -16,6 +16,7 @@ import json
 import random
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, TopicPartition
 
@@ -31,7 +32,7 @@ class InFlightMessage:
     msg_id: int
     partition: int
     offset: int
-    task: asyncio.Task
+    task: asyncio.Task[None]
 
 
 @dataclass
@@ -56,10 +57,10 @@ class AsyncWorkerConsumer:
     processed_count: int = field(default=0, init=False)
     stop_event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.semaphore = asyncio.Semaphore(self.max_concurrent)
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the consumer."""
         self.consumer = AIOKafkaConsumer(
             self.topic,
@@ -75,7 +76,7 @@ class AsyncWorkerConsumer:
         await self.consumer.start()
         print(f"  Consumer started (max_concurrent={self.max_concurrent})")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Graceful shutdown - wait for in-flight messages."""
         self.stop_event.set()
 
@@ -88,7 +89,7 @@ class AsyncWorkerConsumer:
             await self.consumer.stop()
         print(f"  Consumer stopped. Total processed: {self.processed_count}")
 
-    async def process_message(self, msg_id: int, data: dict) -> bool:
+    async def process_message(self, msg_id: int, data: dict[str, Any]) -> bool:
         """
         Process a single message. Override this for your business logic.
         Returns True if successful, False if failed.
@@ -104,7 +105,7 @@ class AsyncWorkerConsumer:
 
         return True
 
-    async def _worker(self, msg):
+    async def _worker(self, msg: Any) -> None:
         """Worker that processes a message with semaphore control."""
         assert self.consumer is not None
         msg_id = msg.value["id"]
@@ -131,7 +132,7 @@ class AsyncWorkerConsumer:
                 if msg_id in self.in_flight:
                     del self.in_flight[msg_id]
 
-    async def run(self, max_messages: int | None = None):
+    async def run(self, max_messages: int | None = None) -> None:
         """
         Main consumer loop.
 
@@ -171,7 +172,7 @@ class AsyncWorkerConsumer:
             )
 
 
-async def produce_messages(count: int = 15):
+async def produce_messages(count: int = 15) -> None:
     """Send test messages with varying processing times."""
     producer = AIOKafkaProducer(
         bootstrap_servers=BOOTSTRAP_SERVERS,
@@ -200,7 +201,7 @@ async def produce_messages(count: int = 15):
         await producer.stop()
 
 
-async def reset_consumer_group():
+async def reset_consumer_group() -> None:
     """Reset consumer group for clean demo."""
     try:
         consumer = AIOKafkaConsumer(
@@ -219,7 +220,7 @@ async def reset_consumer_group():
         pass
 
 
-async def main():
+async def main() -> None:
     print("\n" + "=" * 60)
     print("ASYNC WORKER POOL PATTERN")
     print("=" * 60)

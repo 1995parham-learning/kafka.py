@@ -16,7 +16,9 @@ async def create_producer() -> AIOKafkaProducer:
     return producer
 
 
-async def send_messages(producer: AIOKafkaProducer, topic: str, count: int = 10):
+async def send_messages(
+    producer: AIOKafkaProducer, topic: str, count: int = 10
+) -> None:
     """Send sample messages to a Kafka topic."""
     for i in range(count):
         message = {
@@ -34,7 +36,7 @@ async def send_messages(producer: AIOKafkaProducer, topic: str, count: int = 10)
         await asyncio.sleep(1)  # Simulate some work between messages
 
 
-async def main():
+async def main() -> None:
     topic = "demo-topic"
     producer = await create_producer()
 

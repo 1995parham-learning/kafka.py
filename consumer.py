@@ -22,7 +22,9 @@ async def create_consumer(topic: str, group_id: str) -> AIOKafkaConsumer:
     return consumer
 
 
-async def consume_messages(consumer: AIOKafkaConsumer, stop_event: asyncio.Event):
+async def consume_messages(
+    consumer: AIOKafkaConsumer, stop_event: asyncio.Event
+) -> None:
     """Consume messages from Kafka until stop event is set."""
     try:
         async for msg in consumer:
@@ -39,7 +41,7 @@ async def consume_messages(consumer: AIOKafkaConsumer, stop_event: asyncio.Event
         pass
 
 
-async def main():
+async def main() -> None:
     topic = "demo-topic"
     group_id = "demo-consumer-group"
     stop_event = asyncio.Event()
@@ -47,7 +49,7 @@ async def main():
     # Handle graceful shutdown
     loop = asyncio.get_running_loop()
 
-    def signal_handler():
+    def signal_handler() -> None:
         print("\nShutdown signal received...")
         stop_event.set()
 

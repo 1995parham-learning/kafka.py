@@ -19,6 +19,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, TopicPartition
 
@@ -45,7 +46,7 @@ class InFlightMessage:
     state: MessageState = MessageState.QUEUED
     processing_started_at: datetime | None = None
     processing_time_expected: int = 0
-    task: asyncio.Task | None = None
+    task: asyncio.Task[None] | None = None
     error: str | None = None
 
     @property
@@ -106,12 +107,12 @@ class TrackedConsumer:
     completed: list[int] = field(default_factory=list, init=False)
     semaphore: asyncio.Semaphore = field(init=False)
     stop_event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
-    display_task: asyncio.Task | None = field(default=None, init=False)
+    display_task: asyncio.Task[None] | None = field(default=None, init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.semaphore = asyncio.Semaphore(self.max_concurrent)
 
-    async def start(self):
+    async def start(self) -> None:
         self.consumer = AIOKafkaConsumer(
             self.topic,
             bootstrap_servers=BOOTSTRAP_SERVERS,
@@ -122,7 +123,7 @@ class TrackedConsumer:
         )
         await self.consumer.start()
 
-    async def stop(self):
+    async def stop(self) -> None:
         self.stop_event.set()
 
         if self.display_task:
@@ -138,7 +139,7 @@ class TrackedConsumer:
         if self.consumer:
             await self.consumer.stop()
 
-    async def display_status(self):
+    async def display_status(self) -> None:
         """Continuously display in-flight message status."""
         while not self.stop_event.is_set():
             # Clear and redraw
@@ -180,7 +181,7 @@ class TrackedConsumer:
             raise ValueError("Simulated error")
         return True
 
-    async def worker(self, msg):
+    async def worker(self, msg: Any) -> None:
         """Worker that processes a message."""
         assert self.consumer is not None
         msg_id = msg.value["id"]
@@ -215,7 +216,7 @@ class TrackedConsumer:
                 if msg_id in self.in_flight:
                     del self.in_flight[msg_id]
 
-    async def run(self, max_messages: int):
+    async def run(self, max_messages: int) -> None:
         # Start display task
         assert self.consumer is not None
         self.display_task = asyncio.create_task(self.display_status())
@@ -255,7 +256,7 @@ class TrackedConsumer:
         await asyncio.sleep(2)
 
 
-async def produce_messages(count: int = 10):
+async def produce_messages(count: int = 10) -> None:
     """Send test messages."""
     producer = AIOKafkaProducer(
         bootstrap_servers=BOOTSTRAP_SERVERS,
@@ -276,7 +277,7 @@ async def produce_messages(count: int = 10):
         await producer.stop()
 
 
-async def reset_consumer_group():
+async def reset_consumer_group() -> None:
     try:
         consumer = AIOKafkaConsumer(
             TOPIC,
@@ -294,7 +295,7 @@ async def reset_consumer_group():
         pass
 
 
-async def main():
+async def main() -> None:
     print("Setting up demo...")
     await reset_consumer_group()
     await produce_messages(10)
